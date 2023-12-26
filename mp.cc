@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <cstdint>
 
 EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 
@@ -18,8 +19,8 @@ static int g_currentIdx;
 #define WM_FROM_MAIN    (WM_USER + 1)
 #define WM_FROM_SUB     (WM_USER + 2)
 
-static void (CALLBACK *g_MainListener)(int) = nullptr;
-static void (CALLBACK *g_SubListener)(int, int) = nullptr;
+static void (CALLBACK* g_MainListener)(int) = nullptr;
+static void (CALLBACK* g_SubListener)(int, int) = nullptr;
 
 EXPORT BOOL MP_IsMain()
 {
@@ -29,19 +30,19 @@ EXPORT BOOL MP_IsMain()
 static LRESULT CALLBACK MessageWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     switch (msg) {
-        case WM_FROM_MAIN:
-            if (g_MainListener) g_MainListener((int)lp);
-            break;
-        case WM_FROM_SUB:
-            if (g_SubListener) g_SubListener((int)wp, (int)lp);
-            break;
+    case WM_FROM_MAIN:
+        if (g_MainListener) g_MainListener((int)lp);
+        break;
+    case WM_FROM_SUB:
+        if (g_SubListener) g_SubListener((int)wp, (int)lp);
+        break;
     }
 
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
-static LONG (NTAPI *g_NtResumeProcess)(HANDLE ProcessHandle);
-static LONG (NTAPI *g_NtSuspendProcess)(HANDLE ProcessHandle);
+static LONG(NTAPI* g_NtResumeProcess)(HANDLE ProcessHandle);
+static LONG(NTAPI* g_NtSuspendProcess)(HANDLE ProcessHandle);
 
 EXPORT INT MP_Init()
 {
@@ -90,6 +91,7 @@ EXPORT void MP_WaitAll()
     if (g_subCount == 0) return;
 
     WaitForMultipleObjects(g_subCount, g_subProcs, TRUE, INFINITE);
+    g_subCount = 0;
 }
 
 static void InjectSelf(HANDLE process)
@@ -99,7 +101,7 @@ static void InjectSelf(HANDLE process)
     GetModuleFileNameW((HINSTANCE)&__ImageBase, dll_path, 1024);
 
     // Create path inside process.
-    void *path_addr = VirtualAllocEx(process, NULL, sizeof(dll_path), MEM_COMMIT, PAGE_READWRITE);
+    void* path_addr = VirtualAllocEx(process, NULL, sizeof(dll_path), MEM_COMMIT, PAGE_READWRITE);
     WriteProcessMemory(process, path_addr, &dll_path, sizeof(dll_path), NULL);
 
     // Load this dll.
@@ -201,12 +203,12 @@ public:
         m_hash = hash;
     }
 
-    VARIANT *GetData()
+    VARIANT* GetData()
     {
         return &m_data;
     }
 
-    void SetData(VARIANT *data)
+    void SetData(VARIANT* data)
     {
         VariantCopy(&m_data, data);
     }
@@ -228,15 +230,15 @@ static struct MetaData {
     UINT length;
 } g_meta;
 
-static DWORD WINAPI Thread_Getter(MetaData *param);
-static void GetElement(UINT32 hash, VARIANT *value)
+static DWORD WINAPI Thread_Getter(MetaData* param);
+static void GetElement(UINT32 hash, VARIANT* value)
 {
     g_meta.hash = hash;
     g_meta.index = g_currentIdx;
 
     HANDLE main = OpenProcess(PROCESS_ALL_ACCESS, FALSE, g_mainPId);
 
-    void *addr = VirtualAllocEx(main, NULL, sizeof(MetaData), MEM_COMMIT, PAGE_READWRITE);
+    void* addr = VirtualAllocEx(main, NULL, sizeof(MetaData), MEM_COMMIT, PAGE_READWRITE);
     WriteProcessMemory(main, addr, &g_meta, sizeof(MetaData), NULL);
 
     HANDLE remote = CreateRemoteThread(main, NULL, 0,
@@ -255,8 +257,8 @@ static void GetElement(UINT32 hash, VARIANT *value)
     *value = g_meta.value;
 }
 
-static DWORD WINAPI Thread_Setter(MetaData *param);
-static void SetElement(UINT32 hash, VARIANT *value)
+static DWORD WINAPI Thread_Setter(MetaData* param);
+static void SetElement(UINT32 hash, VARIANT* value)
 {
     g_meta.hash = hash;
     g_meta.value = *value;
@@ -266,12 +268,12 @@ static void SetElement(UINT32 hash, VARIANT *value)
     if (value->vt == VT_BSTR) {
         g_meta.length = lstrlenW(value->bstrVal);
         size_t bytes = (g_meta.length + 1) * sizeof(WCHAR);
-        void *addr = VirtualAllocEx(main, NULL, bytes, MEM_COMMIT, PAGE_READWRITE);
+        void* addr = VirtualAllocEx(main, NULL, bytes, MEM_COMMIT, PAGE_READWRITE);
         WriteProcessMemory(main, addr, g_meta.value.bstrVal, bytes, NULL);
         g_meta.value.bstrVal = (LPWSTR)addr;
     }
 
-    void *addr = VirtualAllocEx(main, NULL, sizeof(MetaData), MEM_COMMIT, PAGE_READWRITE);
+    void* addr = VirtualAllocEx(main, NULL, sizeof(MetaData), MEM_COMMIT, PAGE_READWRITE);
     WriteProcessMemory(main, addr, &g_meta, sizeof(MetaData), NULL);
 
     HANDLE remote = CreateRemoteThread(main, NULL, 0,
@@ -321,7 +323,7 @@ public:
         return m_refCount;
     }
 
-    HRESULT STDMETHODCALLTYPE QueryInterface(const IID &riid, void **ppvObject)
+    HRESULT STDMETHODCALLTYPE QueryInterface(const IID& riid, void** ppvObject)
     {
         if (riid == IID_IUnknown || riid == IID_IDispatch) {
             this->AddRef();
@@ -331,32 +333,32 @@ public:
         return E_NOINTERFACE;
     }
 
-    HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT *pctinfo)
+    HRESULT STDMETHODCALLTYPE GetTypeInfoCount(UINT* pctinfo)
     {
         if (pctinfo) *pctinfo = 0;
         return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT iTInfo, LCID lcid, ITypeInfo **ppTInfo)
+    HRESULT STDMETHODCALLTYPE GetTypeInfo(UINT iTInfo, LCID lcid, ITypeInfo** ppTInfo)
     {
         if (ppTInfo) *ppTInfo = NULL;
         return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE GetIDsOfNames(const IID &riid, LPOLESTR *rgszNames, UINT cNames, LCID lcid, DISPID *rgDispId)
+    HRESULT STDMETHODCALLTYPE GetIDsOfNames(const IID& riid, LPOLESTR* rgszNames, UINT cNames, LCID lcid, DISPID* rgDispId)
     {
         *rgDispId = (LONG)GetHash(*rgszNames, cNames);
         return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE Invoke(DISPID dispIdMember, const IID &riid, LCID lcid, WORD wFlags,
-        DISPPARAMS *pDispParams, VARIANT *pVarResult, EXCEPINFO *pExcepInfo, UINT *puArgErr)
+    HRESULT STDMETHODCALLTYPE Invoke(DISPID dispIdMember, const IID& riid, LCID lcid, WORD wFlags,
+        DISPPARAMS* pDispParams, VARIANT* pVarResult, EXCEPINFO* pExcepInfo, UINT* puArgErr)
     {
         UINT32 hash = (UINT32)dispIdMember;
 
         if ((wFlags & DISPATCH_METHOD) || (wFlags & DISPATCH_PROPERTYGET)) {
             if (MP_IsMain()) {
-                Element *el = FindElement((UINT32)dispIdMember);
+                Element* el = FindElement((UINT32)dispIdMember);
                 if (pVarResult != NULL) VariantCopy(pVarResult, el->GetData());
                 return S_OK;
             }
@@ -367,7 +369,7 @@ public:
         }
         else if ((wFlags & DISPATCH_PROPERTYPUT) || (wFlags & DISPATCH_PROPERTYPUTREF)) {
             if (MP_IsMain()) {
-                Element *el = FindElement((UINT32)dispIdMember);
+                Element* el = FindElement((UINT32)dispIdMember);
                 el->SetData(&pDispParams->rgvarg[0]);
                 return S_OK;
             }
@@ -380,7 +382,7 @@ public:
         return DISP_E_MEMBERNOTFOUND;
     }
 
-    Element *FindElement(UINT32 hash)
+    Element* FindElement(UINT32 hash)
     {
         if (m_count >= (m_cmask + 1) * 0.75) {
             int capMask = m_cmask + 1;
@@ -388,7 +390,7 @@ public:
             Expand(capMask - 1);
         }
 
-        Element *entry = FindEntry(m_elements, m_cmask, hash);
+        Element* entry = FindEntry(m_elements, m_cmask, hash);
 
         bool isNewKey = entry->GetHash() == 0;
         if (isNewKey && entry->IsNull()) {
@@ -398,13 +400,13 @@ public:
         return entry;
     }
 
-    static Element *FindEntry(Element *elements, int cmask, UINT32 hash)
+    static Element* FindEntry(Element* elements, int cmask, UINT32 hash)
     {
         uint32_t index = hash & cmask;
-        Element *tombstone = nullptr;
+        Element* tombstone = nullptr;
 
         for (;;) {
-            Element *el = &elements[index];
+            Element* el = &elements[index];
 
             if (el->GetHash() == 0) {
                 if (el->IsNull()) {
@@ -424,19 +426,19 @@ public:
 
     void Expand(int capMask)
     {
-        Element *elements = new Element[capMask + 1];
+        Element* elements = new Element[capMask + 1];
         for (int i = 0; i <= capMask; i++) {
             elements[i].Init();
         }
 
         m_count = 0;
         for (int i = 0; i <= m_cmask; i++) {
-            Element *el = &m_elements[i];
+            Element* el = &m_elements[i];
             UINT32 hash = el->GetHash();
 
             if (hash == 0) continue;
 
-            Element *dest = FindEntry(elements, capMask, hash);
+            Element* dest = FindEntry(elements, capMask, hash);
             dest->SetHash(hash);
             dest->SetData(el->GetData());
             m_count++;
@@ -452,15 +454,15 @@ private:
 
     int m_count;
     int m_cmask;
-    Element *m_elements;
+    Element* m_elements;
 };
 
-static SharedData *g_sharedData = nullptr;
+static SharedData* g_sharedData = nullptr;
 
-static DWORD WINAPI Thread_Getter(MetaData *meta)
+static DWORD WINAPI Thread_Getter(MetaData* meta)
 {
     HANDLE process = g_subProcs[meta->index];
-    Element *el = g_sharedData->FindElement(meta->hash);
+    Element* el = g_sharedData->FindElement(meta->hash);
     VARIANT data = *el->GetData();
 
     meta->value = data;
@@ -478,7 +480,7 @@ static DWORD WINAPI Thread_Getter(MetaData *meta)
     return 0;
 }
 
-static DWORD WINAPI Thread_Setter(MetaData *meta)
+static DWORD WINAPI Thread_Setter(MetaData* meta)
 {
     if (meta->value.vt == VT_BSTR) {
         LPWSTR pre = meta->value.bstrVal;
@@ -486,7 +488,7 @@ static DWORD WINAPI Thread_Setter(MetaData *meta)
         VirtualFree(pre, 0, MEM_RELEASE);
     }
 
-    Element *el = g_sharedData->FindElement(meta->hash);
+    Element* el = g_sharedData->FindElement(meta->hash);
     el->SetData(&meta->value);
 
     VirtualFree(meta, 0, MEM_RELEASE);
@@ -566,13 +568,13 @@ EXPORT void MP_Suspend(int index)
 BOOL APIENTRY DllMain(HINSTANCE module, DWORD reason, LPVOID reserved)
 {
     switch (reason) {
-        case DLL_PROCESS_DETACH:
-            if (MP_IsMain()) {
-                for (int i = 0; i < g_subCount; i++) {
-                    CloseHandle(g_subProcs[i]);
-                }
+    case DLL_PROCESS_DETACH:
+        if (MP_IsMain()) {
+            for (int i = 0; i < g_subCount; i++) {
+                CloseHandle(g_subProcs[i]);
             }
-            break;
+        }
+        break;
     }
 
     return TRUE;
